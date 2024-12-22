@@ -88,19 +88,20 @@ class FavoriteSerializer(serializers.ModelSerializer):
         ).data
 
 
-class FollowSerializer(serializers.ModelSerializer):
-    avatar = Base64ImageField(required=False, source='author.avatar')
-    email = serializers.ReadOnlyField(source='author.email')
-    first_name = serializers.ReadOnlyField(source='author.first_name')
-    id = serializers.ReadOnlyField(source='author.id')
-    is_subscribed = serializers.SerializerMethodField()
-    last_name = serializers.ReadOnlyField(source='author.last_name')
-    recipes = serializers.SerializerMethodField()
-    recipes_count = serializers.IntegerField(default=0)
-    username = serializers.ReadOnlyField(source='author.username')
+class FollowCreateSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Follow
+        fields = ('author', 'user')
+
+
+class FollowReadSerializer(serializers.ModelSerializer):
+    is_subscribed = serializers.SerializerMethodField()
+    recipes = serializers.SerializerMethodField()
+    recipes_count = serializers.IntegerField()
+
+    class Meta:
+        model = User
         fields = (
             'avatar',
             'email',
@@ -112,22 +113,25 @@ class FollowSerializer(serializers.ModelSerializer):
             'recipes',
             'username'
         )
+        read_only_fields = (
+            'email',
+            'first_name',
+            'last_name',
+            'username'
+        )
 
     def get_is_subscribed(self, obj):
         user = self.context.get('request').user
-        return Follow.objects.filter(author=obj.author, user=user).exists()
+        return Follow.objects.filter(author=obj, user=user).exists()
 
     def get_recipes(self, obj):
         request = self.context.get('request')
         limit = int(request.GET.get('recipes_limit', constants.PAGE_SIZE))
         return ShortRecipeSerializer(
-            Recipe.objects.filter(author=obj.author)[:limit],
+            Recipe.objects.filter(author=obj)[:limit],
             many=True,
             context={'request': request},
         ).data
-
-    # def get_recipes_count(self, obj):
-    #     return Recipe.objects.filter(author=obj.author).count()
 
 
 class IngredientSerializer(serializers.ModelSerializer):

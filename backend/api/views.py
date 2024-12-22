@@ -7,8 +7,7 @@ from django_filters.rest_framework import DjangoFilterBackend
 from djoser.views import UserViewSet
 from rest_framework import status, viewsets
 from rest_framework.decorators import action
-from rest_framework.permissions import (AllowAny, IsAuthenticated,
-                                        IsAuthenticatedOrReadOnly)
+from rest_framework.permissions import (AllowAny, IsAuthenticated)
 from rest_framework.response import Response
 from rest_framework.reverse import reverse
 
@@ -16,10 +15,10 @@ from api.filters import IngredientFilter, RecipeFilter
 from api.pagination import CustomLimitPagination
 from api.permissions import IsAdminOrAuthorOrReadOnly
 from api.serializers import (AvatarSerializer, CustomUserSerializer,
-                             FavoriteSerializer, FollowSerializer,
-                             IngredientSerializer, RecipeCreateSerializer,
-                             RecipeReadSerializer, ShoppingListSerializer,
-                             TagSerializer)
+                             FavoriteSerializer, FollowCreateSerializer,
+                             FollowReadSerializer, IngredientSerializer,
+                             RecipeCreateSerializer, RecipeReadSerializer,
+                             ShoppingListSerializer, TagSerializer)
 from recipes.models import (Favorite, Ingredient, Recipe, RecipeIngredient,
                             ShoppingList, Tag)
 from users.models import Follow
@@ -36,7 +35,7 @@ def short_url(request, pk):
 
 class CustomUserViewSet(UserViewSet):
     pagination_class = CustomLimitPagination
-    permission_classes = [IsAuthenticatedOrReadOnly]
+    permission_classes = [AllowAny]
     queryset = User.objects.all()
     serializer_class = CustomUserSerializer
 
@@ -72,7 +71,8 @@ class CustomUserViewSet(UserViewSet):
 
     @action(
         detail=True,
-        methods=['POST', 'DELETE']
+        methods=['POST', 'DELETE'],
+        permission_classes=[IsAuthenticated]
     )
     def subscribe(self, request, id):
         user = request.user
@@ -90,15 +90,22 @@ class CustomUserViewSet(UserViewSet):
                     {'errors': 'Вы уже подписаны на данного пользователя !'},
                     status=status.HTTP_400_BAD_REQUEST,
                 )
-            serializer = FollowSerializer(
+            serializer = FollowCreateSerializer(
                 context={'request': request},
                 data={
-                    'author': author.pk,
-                    'user': user.pk
+                    'author': author.id,
+                    'user': user.id
                 }
             )
             serializer.is_valid(raise_exception=True)
-            serializer.save(author=author, user=user)
+            serializer.save()
+            users_annotated = User.objects.annotate(
+                recipes_count=Count('recipes'))
+            author_annotated = users_annotated.filter(id=id).first()
+            serializer = FollowReadSerializer(
+                author_annotated,
+                context={'request': request}
+            )
             return Response(serializer.data, status=status.HTTP_201_CREATED)
 
         elif self.request.method == 'DELETE':
@@ -122,13 +129,11 @@ class CustomUserViewSet(UserViewSet):
     )
     def get_subscriptions(self, request):
         user = request.user
-        queryset = (
-            Follow.objects
-            .filter(user=user)
-            .annotate(recipes_count=Count('author__recipes'))
+        queryset = User.objects.filter(follower__user=user).annotate(
+            recipes_count=Count('recipes')
         )
         pages = self.paginate_queryset(queryset)
-        serializer = FollowSerializer(
+        serializer = FollowReadSerializer(
             pages,
             many=True,
             context={'request': request}
