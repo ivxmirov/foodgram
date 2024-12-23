@@ -116,6 +116,7 @@ class FollowReadSerializer(serializers.ModelSerializer):
         read_only_fields = (
             'email',
             'first_name',
+            'id',
             'last_name',
             'username'
         )
@@ -225,7 +226,8 @@ class RecipeCreateSerializer(serializers.ModelSerializer):
 
     def to_representation(self, instance):
         serializer = RecipeReadSerializer(
-            instance, context={'request': self.context.get('request')}
+            instance,
+            context={'request': self.context.get('request')}
         )
         return serializer.data
 
