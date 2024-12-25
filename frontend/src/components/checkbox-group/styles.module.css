@@ -14,7 +14,7 @@
 .checkboxGroupItems {
   display: flex;
   align-items: center;
-  justify-content: space-evenly;
+  justify-content: space-between;
   flex-wrap: wrap;
   gap: 8px;
   padding-left: 12px;
